@@ -26,7 +26,7 @@ export default function ChatWidget() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Скролл к последнему сообщению
+  // Автоматический скролл вниз к новому сообщению
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -37,19 +37,19 @@ export default function ChatWidget() {
     }
   }, [messages, isOpen]);
 
-  // Логика пульсации (рябь при загрузке и каждые 5 секунд, если не нажимали)
+  // Логика пульсации (рябь при загрузке и каждые 5 секунд, если пользователь не нажимал)
   useEffect(() => {
     if (hasOpened) {
       setIsRippling(false);
       return;
     }
 
-    // Первоначальная пульсация 2.5 секунды
+    // Первоначальная рябь на 2.5 секунды
     const initialTimer = setTimeout(() => {
       setIsRippling(false);
     }, 2500);
 
-    // Запуск ряби каждые 5 секунд
+    // Запуск волны ряби каждые 5 секунд
     const interval = setInterval(() => {
       if (!hasOpened) {
         setIsRippling(true);
@@ -93,20 +93,21 @@ export default function ChatWidget() {
           { role: "assistant", content: data.reply },
         ]);
       } else {
+        // Показываем реальный текст ошибки от сервера
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже.",
+            content: `⚠️ ${data.error || "Сбой обработки запроса на сервере"}`,
           },
         ]);
       }
-    } catch (error) {
+    } catch (error: any) {
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "Сбой сети. Проверьте соединение с интернетом.",
+          content: `⚠️ Ошибка сети: ${error?.message || "Не удалось связаться с сервером"}`,
         },
       ]);
     } finally {
@@ -215,7 +216,7 @@ export default function ChatWidget() {
         </div>
       )}
 
-      {/* Кнопка вызова чата (с анимацией ряби) */}
+      {/* Плавающая кнопка вызова чата с анимацией ряби на воде */}
       <button
         onClick={isOpen ? () => setIsOpen(false) : handleOpenChat}
         className={`relative flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-xl hover:scale-105 active:scale-95 transition-all duration-300 ${

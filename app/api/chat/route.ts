@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
-// Инициализируем клиент Gemini с ключом из .env.local
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-// Системный промпт с жесткими ограничениями
 const SYSTEM_INSTRUCTION = `
 Ты — вежливый и компетентный виртуальный консультант интернет-магазина медицинских товаров и оборудования "MedChat".
 
@@ -34,32 +32,73 @@ export async function POST(req: NextRequest) {
 
     if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY не задан в .env.local" },
+        { error: "Ключ GEMINI_API_KEY не задан" },
         { status: 500 }
       );
     }
 
-    // Преобразуем формат истории диалога для Gemini SDK
-    const contents = messages.map((msg: { role: string; content: string }) => ({
+    // 1. Получаем реальный список всех доступных моделей
+    console.log("--- Запрашиваем список доступных моделей в вашем аккаунте... ---");
+    const availableModels: string[] = [];
+    try {
+      const listResponse = await ai.models.list();
+      for await (const m of listResponse) {
+        if (m.name && (m as any).supportedActions?.includes("generateContent") !== false) {
+          // убираем префикс "models/" если он есть
+          const cleanName = m.name.replace(/^models\//, "");
+          availableModels.push(cleanName);
+        }
+      }
+      console.log("Доступные модели:", availableModels);
+    } catch (e: any) {
+      console.warn("Не удалось получить список моделей:", e?.message);
+    }
+
+    // Если список получить не удалось, используем резервный
+    const modelsToTry = availableModels.length > 0 
+      ? availableModels.filter(name => !name.includes("embedding") && !name.includes("imagen") && !name.includes("vision"))
+      : ["gemini-3.8-flash"];
+
+    const firstUserIndex = messages.findIndex((m) => m.role === "user");
+    const validMessages =
+      firstUserIndex !== -1 ? messages.slice(firstUserIndex) : messages;
+
+    const contents = validMessages.map((msg: { role: string; content: string }) => ({
       role: msg.role === "assistant" ? "model" : "user",
       parts: [{ text: msg.content }],
     }));
 
-    // Запрос к модели Gemini
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: contents,
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.3, // Низкая температура для строгого следования инструкциям
-      },
-    });
+    let lastError: any = null;
 
-    const reply = response.text || "Извините, не удалось сформировать ответ.";
+    // Пробуем каждую подходящую модель
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Пробуем модель: ${modelName}...`);
 
-    return NextResponse.json({ reply });
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: contents,
+          config: {
+            systemInstruction: SYSTEM_INSTRUCTION,
+            temperature: 0.3,
+          },
+        });
+
+        if (response && response.text) {
+          console.log(`>>> УСПЕШНО! Модель ${modelName} сгенерировала ответ.`);
+          return NextResponse.json({ reply: response.text });
+        }
+      } catch (err: any) {
+        lastError = err;
+        console.warn(`Модель ${modelName} вернула отказ:`, err?.message || err);
+      }
+    }
+
+    return NextResponse.json(
+      { error: "Серверы перегружены, попробуйте еще раз через несколько секунд." },
+      { status: 503 }
+    );
   } catch (error: any) {
-    console.error("Ошибка Gemini API:", error);
     return NextResponse.json(
       { error: error?.message || "Внутренняя ошибка сервера" },
       { status: 500 }

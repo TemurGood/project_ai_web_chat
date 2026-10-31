@@ -13,7 +13,6 @@ export default function Background3D() {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // Сцена, камера, рендерер
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
     camera.position.z = 25;
@@ -23,15 +22,14 @@ export default function Background3D() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
-    // Создаем 3D-волну частиц (медицинский/технологичный мотив)
     const count = 400;
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(count * 3);
 
     for (let i = 0; i < count * 3; i += 3) {
-      positions[i] = (Math.random() - 0.5) * 50;     // X
-      positions[i + 1] = (Math.random() - 0.5) * 50; // Y
-      positions[i + 2] = (Math.random() - 0.5) * 30; // Z
+      positions[i] = (Math.random() - 0.5) * 50;
+      positions[i + 1] = (Math.random() - 0.5) * 50;
+      positions[i + 2] = (Math.random() - 0.5) * 30;
     }
 
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -48,12 +46,11 @@ export default function Background3D() {
     scene.add(particles);
 
     let animationFrameId: number;
-    let clock = new THREE.Clock();
+    const startTime = performance.now();
 
     const animate = () => {
-      const elapsedTime = clock.getElapsedTime();
+      const elapsedTime = (performance.now() - startTime) * 0.001;
 
-      // Плавное вращение и дыхание 3D сцены
       particles.rotation.y = elapsedTime * 0.08;
       particles.rotation.x = Math.sin(elapsedTime * 0.05) * 0.2;
 
